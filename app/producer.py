@@ -36,7 +36,7 @@ class ProducerThread(threading.Thread):
         self._stop_event = stop_event
         self._config = config
 
-        self._gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        self._gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self._gemini_api_key = os.getenv("GEMINI_API_KEY")
         self._model: Optional[genai.GenerativeModel] = None
         if self._gemini_api_key:

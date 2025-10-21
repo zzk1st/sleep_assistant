@@ -19,12 +19,12 @@ class ElevenLabsConfig:
 
 
 class ElevenLabsTTS:
-    def __init__(self, config: ElevenLabsConfig, timeout_seconds: float = 60.0):
+    def __init__(self, config: ElevenLabsConfig, timeout_seconds: float = 15.0):
         self._config = config
         self._timeout_seconds = timeout_seconds
         self._base_url = "https://api.elevenlabs.io/v1"
 
-    def synthesize(self, text: str, max_retries: int = 3, retry_backoff_seconds: float = 1.5) -> bytes:
+    def synthesize(self, text: str, max_retries: int = 2, retry_backoff_seconds: float = 1.0) -> bytes:
         if not text:
             raise ValueError("text must be non-empty")
 

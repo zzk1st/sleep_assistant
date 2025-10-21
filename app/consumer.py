@@ -6,8 +6,10 @@ import threading
 import time
 from dataclasses import dataclass
 from queue import Queue, Empty
-
-import simpleaudio as sa
+import shutil
+import subprocess
+import signal
+import os
 
 from .tts_elevenlabs import ElevenLabsTTS, ElevenLabsConfig
 
@@ -40,16 +42,98 @@ class ConsumerThread(threading.Thread):
         self._config = config
 
     def _play_wav_bytes(self, wav_bytes: bytes) -> None:
-        try:
-            # simpleaudio expects raw PCM or WAV file data; it can handle WAV directly.
-            # Use sa.WaveObject.from_wave_file requires a file path, so we load from bytes via BytesIO -> wave module
-            # Instead, simpleaudio has from_wave_file only; we will use wave + from_wave_read
-            import wave
+        """
+        Play WAV bytes using available system audio players.
 
-            with wave.open(io.BytesIO(wav_bytes), "rb") as wave_read:
-                wave_obj = sa.WaveObject.from_wave_read(wave_read)
-                play_obj = wave_obj.play()
-                play_obj.wait_done()  # Block until playback is finished
+        Preference order (first found in PATH):
+        - ffplay (ffmpeg) - uses -nodisp -autoexit -loglevel error
+        - aplay (ALSA)
+        - paplay (PulseAudio)
+        - play (SoX)
+        - mpv
+        """
+        try:
+            # Write to a temporary file and invoke a CLI player.
+            import tempfile
+            import os
+
+            with tempfile.NamedTemporaryFile(prefix="sleeping_assistant_", suffix=".wav", delete=False) as tmp:
+                tmp.write(wav_bytes)
+                tmp_path = tmp.name
+
+            try:
+                candidates: list[tuple[str, list[str]]] = []
+
+                ffplay = shutil.which("ffplay")
+                if ffplay:
+                    candidates.append(("ffplay", [ffplay, "-nodisp", "-autoexit", "-loglevel", "error", tmp_path]))
+
+                aplay = shutil.which("aplay")
+                if aplay:
+                    candidates.append(("aplay", [aplay, tmp_path]))
+
+                paplay = shutil.which("paplay")
+                if paplay:
+                    candidates.append(("paplay", [paplay, tmp_path]))
+
+                play = shutil.which("play")
+                if play:
+                    candidates.append(("play", [play, tmp_path]))
+
+                mpv = shutil.which("mpv")
+                if mpv:
+                    candidates.append(("mpv", [mpv, "--no-video", "--really-quiet", tmp_path]))
+
+                if not candidates:
+                    raise RuntimeError("No audio playback utility found (ffplay/aplay/paplay/play/mpv)")
+
+                last_exc: Exception | None = None
+                for name, cmd in candidates:
+                    try:
+                        # Start player in its own process group so we can terminate reliably
+                        proc = subprocess.Popen(cmd, start_new_session=True)
+                        # Poll for completion while honoring stop_event cancellation
+                        while True:
+                            if self._stop_event.is_set():
+                                try:
+                                    os.killpg(proc.pid, signal.SIGTERM)
+                                except Exception:  # noqa: BLE001
+                                    pass
+                                # Give it a brief moment to exit gracefully
+                                try:
+                                    proc.wait(timeout=1.0)
+                                except Exception:  # noqa: BLE001
+                                    try:
+                                        os.killpg(proc.pid, signal.SIGKILL)
+                                    except Exception:  # noqa: BLE001
+                                        pass
+                                break
+
+                            ret = proc.poll()
+                            if ret is not None:
+                                if ret != 0:
+                                    raise subprocess.CalledProcessError(ret, cmd)
+                                last_exc = None
+                                break
+                            time.sleep(0.05)
+
+                        if self._stop_event.is_set():
+                            # If we cancelled, stop trying further players
+                            last_exc = None
+                            break
+                        # Playback succeeded
+                        break
+                    except Exception as exc:  # noqa: BLE001
+                        last_exc = exc
+                        logger.warning("Audio player '%s' failed, trying next...", name)
+
+                if last_exc:
+                    raise last_exc
+            finally:
+                try:
+                    os.remove(tmp_path)
+                except Exception:  # noqa: BLE001
+                    logger.warning("Failed to remove temporary audio file: %s", tmp_path)
         except Exception:  # noqa: BLE001
             logger.exception("Audio playback failed")
             raise
@@ -65,7 +149,11 @@ class ConsumerThread(threading.Thread):
                 continue
 
             try:
+                if self._stop_event.is_set():
+                    break
                 wav_bytes = self._tts.synthesize(text)
+                if self._stop_event.is_set():
+                    break
                 self._play_wav_bytes(wav_bytes)
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to synthesize or play audio; item will be dropped")
