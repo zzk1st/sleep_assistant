@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 import threading
 import time
 from dataclasses import dataclass
+from typing import Optional
 from queue import Queue, Empty
 import shutil
 import subprocess
@@ -12,6 +14,7 @@ import signal
 import os
 
 from .tts_elevenlabs import ElevenLabsTTS, ElevenLabsConfig
+from .bgm import BackgroundMusicManager
 from elevenlabs.play import play
 
 
@@ -31,6 +34,7 @@ class ConsumerThread(threading.Thread):
         stop_event: threading.Event,
         tts: ElevenLabsTTS,
         config: ConsumerConfig,
+        bgm: Optional[BackgroundMusicManager] = None,
         *,
         name: str = "ConsumerThread",
         daemon: bool = True,
@@ -41,6 +45,7 @@ class ConsumerThread(threading.Thread):
         self._stop_event = stop_event
         self._tts = tts
         self._config = config
+        self._bgm = bgm
 
     def run(self) -> None:  # noqa: D401
         while not self._stop_event.is_set():
@@ -65,7 +70,13 @@ class ConsumerThread(threading.Thread):
                 if self._stop_event.is_set():
                     break
                 logger.info(f"Playing audio for text: {text}")
-                play(audio)
+                try:
+                    if self._bgm:
+                        self._bgm.duck()
+                    play(audio)
+                finally:
+                    if self._bgm:
+                        self._bgm.unduck()
                 logger.info(f"Played audio for text: {text}")
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to synthesize or play audio; item will be dropped")

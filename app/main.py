@@ -11,6 +11,7 @@ from .config import load_config
 from .producer import ProducerThread, ProducerConfig
 from .consumer import ConsumerThread, ConsumerConfig
 from .tts_elevenlabs import ElevenLabsTTS, ElevenLabsConfig
+from .bgm import BackgroundMusicManager
 
 
 logging.basicConfig(
@@ -44,12 +45,21 @@ def main() -> int:
         name="Producer",
     )
 
+    # Background music manager (placeholder path allowed)
+    bgm_manager = BackgroundMusicManager(
+        music_path=cfg.bgm_path,
+        initial_volume=cfg.bgm_initial_volume,
+        ducked_volume=cfg.bgm_ducked_volume,
+        fade_seconds=cfg.bgm_fade_seconds,
+    )
+
     consumer = ConsumerThread(
         queue=text_queue,
         wake_producer_event=wake_producer_event,
         stop_event=stop_event,
         tts=tts,
         config=ConsumerConfig(low_watermark=cfg.low_watermark),
+        bgm=bgm_manager,
         name="Consumer",
     )
 
@@ -73,6 +83,8 @@ def main() -> int:
     # Prime the system by waking producer so initial content is generated
     wake_producer_event.set()
 
+    # Start background music and threads
+    bgm_manager.start()
     producer.start()
     consumer.start()
 
@@ -95,6 +107,10 @@ def main() -> int:
     finally:
         stop_event.set()
         wake_producer_event.set()
+        try:
+            bgm_manager.stop()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to stop background music")
 
     if force_exit_event.is_set():
         logger.info("Forced exit requested; exiting immediately")

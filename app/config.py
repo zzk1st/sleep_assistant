@@ -17,6 +17,12 @@ class AppConfig:
     low_watermark: int = 1
     batch_produce_count: int = 1
 
+    # Background music settings
+    bgm_path: Optional[str] = "background_music.mp3"
+    bgm_initial_volume: float = 2.0
+    bgm_ducked_volume: float = 0.1
+    bgm_fade_seconds: float = 1.0
+
 
 def load_config(env_file: Optional[str] = None) -> AppConfig:
     if env_file:
@@ -50,6 +56,22 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
             "QUEUE_MAXSIZE, LOW_WATERMARK, and BATCH_PRODUCE_COUNT must be integers"
         ) from exc
 
+    # Background music envs (optional)
+    bgm_path = os.getenv("BGM_PATH", "background_music.wav")  # can be None; user will provide later
+    def _parse_float(name: str, default: float) -> float:
+        v = os.getenv(name)
+        if v is None:
+            return default
+        try:
+            f = float(v)
+        except ValueError as exc:
+            raise RuntimeError(f"{name} must be a float") from exc
+        return max(0.0, min(1.0, f)) if name != "BGM_FADE_SECONDS" else max(0.0, f)
+
+    bgm_initial_volume = _parse_float("BGM_INITIAL_VOLUME", 2.0)
+    bgm_ducked_volume = _parse_float("BGM_DUCKED_VOLUME", 0.1)
+    bgm_fade_seconds = _parse_float("BGM_FADE_SECONDS", 1.0)
+
     return AppConfig(
         elevenlabs_api_key=api_key,
         elevenlabs_voice_id=voice_id,
@@ -57,4 +79,8 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         queue_maxsize=queue_maxsize,
         low_watermark=low_watermark,
         batch_produce_count=batch_produce_count,
+        bgm_path=bgm_path,
+        bgm_initial_volume=bgm_initial_volume,
+        bgm_ducked_volume=bgm_ducked_volume,
+        bgm_fade_seconds=bgm_fade_seconds,
     )

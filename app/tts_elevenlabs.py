@@ -37,7 +37,7 @@ class ElevenLabsTTS:
                     model_id=self._config.model_id,
                     output_format="mp3_44100_128",
                 )
-                return audio
+                return b''.join(audio)
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
                 logger.exception("ElevenLabs TTS request failed on attempt %d", attempt)
