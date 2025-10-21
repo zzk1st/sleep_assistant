@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ProducerConfig:
-    batch_produce_count: int = 5
+    batch_produce_count: int = 1
 
 
 class ProducerThread(threading.Thread):
@@ -49,7 +49,7 @@ class ProducerThread(threading.Thread):
         else:
             logger.warning("GEMINI_API_KEY is not set; using fallback text generator")
 
-    def _generate_sleep_paragraphs_text(self) -> str:
+    def _generate_sleep_paragraphs_text(self) -> list[str]:
         if not self._model:
             paragraphs = [
                 (
@@ -73,13 +73,13 @@ class ProducerThread(threading.Thread):
                     "is time to rest."
                 ),
             ]
-            return "\n\n".join(paragraphs)
+            return paragraphs
 
         prompt = (
             "You are crafting exactly three short, soothing paragraphs to help someone fall asleep. "
             "Write in a calm, gentle tone, focusing on breath, comfort, and safety. "
             "Avoid instructions that require movement; keep it simple, reassuring, and warm. "
-            "Each paragraph must be 200 words or fewer. Output exactly three paragraphs, separated by a blank line, with no titles or numbering."
+            "Each paragraph must be 50 words or fewer. Output exactly three paragraphs, separated by a blank line, with no titles or numbering."
         )
 
         try:
@@ -87,7 +87,7 @@ class ProducerThread(threading.Thread):
             text = (resp.text or "").strip()
         except Exception:  # noqa: BLE001
             logger.exception("Gemini generation failed; using fallback text")
-            return (
+            text = (
                 "Let your breathing become soft and steady. With every exhale, imagine "
                 "tension dissolving like mist. You are safe and supported; the night holds you "
                 "gently. Allow your thoughts to float by without chasing them. It is okay to rest now.\n\n"
@@ -99,7 +99,7 @@ class ProducerThread(threading.Thread):
             )
 
         if not text:
-            return (
+            text = (
                 "Breathe slowly and let your body settle. You are safe and cared for. "
                 "Allow your thoughts to drift away as you sink into rest.\n\n"
                 "In this gentle quiet, comfort surrounds you like a soft blanket. "
@@ -130,11 +130,11 @@ class ProducerThread(threading.Thread):
                     p += "."
             trimmed.append(p)
 
-        return "\n\n".join(trimmed)
+        return trimmed
 
     def run(self) -> None:  # noqa: D401
         while not self._stop_event.is_set():
-            signaled = self._wake_event.wait(timeout=0.5)
+            signaled = self._wake_event.wait(timeout=1)
             if self._stop_event.is_set():
                 break
             if not signaled:
@@ -146,8 +146,12 @@ class ProducerThread(threading.Thread):
                 if self._stop_event.is_set():
                     break
                 try:
-                    paragraphs_text = self._generate_sleep_paragraphs_text()
-                    self._queue.put(paragraphs_text, timeout=0.5)
+                    logger.info("Generating sleep paragraphs")
+                    paragraphs = self._generate_sleep_paragraphs_text()
+                    logger.info(f"Produced {len(paragraphs)} paragraphs")
+                    for paragraph in paragraphs:
+                        logger.info(f"Enqueuing paragraph: {paragraph}")
+                        self._queue.put(paragraph, timeout=0.5)
                 except Exception:  # noqa: BLE001
                     logger.exception("Producer failed to enqueue paragraph")
 

@@ -14,8 +14,8 @@ class AppConfig:
     elevenlabs_model_id: str = "eleven_turbo_v2"
 
     queue_maxsize: int = 50
-    low_watermark: int = 3
-    batch_produce_count: int = 5
+    low_watermark: int = 1
+    batch_produce_count: int = 1
 
 
 def load_config(env_file: Optional[str] = None) -> AppConfig:
@@ -38,8 +38,8 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         )
 
     queue_maxsize_str = os.getenv("QUEUE_MAXSIZE", "50")
-    low_watermark_str = os.getenv("LOW_WATERMARK", "3")
-    batch_count_str = os.getenv("BATCH_PRODUCE_COUNT", "5")
+    low_watermark_str = os.getenv("LOW_WATERMARK", "1")
+    batch_count_str = os.getenv("BATCH_PRODUCE_COUNT", "1")
 
     try:
         queue_maxsize = int(queue_maxsize_str)
