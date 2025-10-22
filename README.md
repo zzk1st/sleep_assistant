@@ -1,5 +1,5 @@
 ## Sleeping Assistant (Prototype)
-The sleeping assistant is a voice-only agent that help users peacefully fall into sleep while still feeling connected to the world by slowly reading today's world news.
+The sleeping assistant is a voice-only agent that help users peacefully fall into sleep while still feeling connected to the world by slowly reading today's world news and user comments.
 
 ### Technical Architecture
 Two-thread Python app:
