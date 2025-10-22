@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from elevenlabs.client import ElevenLabs
-
+from elevenlabs.types.voice_settings import VoiceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,9 @@ class ElevenLabsTTS:
                     text=text,
                     voice_id=self._config.voice_id,
                     model_id=self._config.model_id,
+                    voice_settings=VoiceSettings(
+                        speed=0.5,
+                    ),
                     output_format="mp3_44100_128",
                 )
                 return b''.join(audio)

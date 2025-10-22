@@ -64,7 +64,7 @@ def generate_transcript_paragraphs(state: TranscriptState) -> TranscriptState:
         prompt_parts.append(
             "You are creating the opening of a sleep-inducing news podcast. "
             "Start with a warm greeting like 'Good evening, welcome to Sleepy News Channel, "
-            "and I'm your news anchor [name].' Keep it calm and soothing."
+            "and I'm your news anchor Bob.' Keep it calm and soothing."
         )
     else:
         prompt_parts.append(
@@ -79,7 +79,7 @@ Generate a soothing transcript for bedtime news reading with the following requi
 1. Create 2-3 paragraphs about this news:
    {news_summary}
 
-2. Create 1 paragraph discussing these user comments:
+2. If there are short and interesting comments, create 1 paragraph to read one or two original comments in a funny way.
    {json.dumps(comments, indent=2)}
 
 3. Each paragraph MUST NOT exceed 50 words.
@@ -89,7 +89,7 @@ Generate a soothing transcript for bedtime news reading with the following requi
     
     if add_sleep_guidance:
         prompt_parts.append("""
-6. Add a final paragraph with gentle sleep guidance (breathing, relaxation, etc.).
+6. Add an intermediate paragraph with gentle sleep guidance (breathing, relaxation, etc.). Sth like "while we are discussiing the news, don't forget to breathe slowly".
    Keep it under 50 words and very soothing.
 """)
     
@@ -99,6 +99,7 @@ Maintain consistency with the previous content:{context_info}
 """)
     
     prompt_parts.append("""
+Remember that we are constantly generating new paragraphs, so don't say things like that's it for today's news or good night etc. Just keep talking.
 Output ONLY a JSON array of paragraph strings, nothing else. Format:
 ["paragraph 1", "paragraph 2", "paragraph 3", ...]
 """)

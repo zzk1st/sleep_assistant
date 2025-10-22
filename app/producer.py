@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from queue import Queue
 from typing import Optional
@@ -28,6 +29,32 @@ class ProducerConfig:
     news_limit: int = 10  # Number of news items to fetch
     comment_limit: int = 5  # Number of top comments per post
     subreddit: str = "worldnews"
+    max_workers: int = 5  # Maximum concurrent threads for fetching summaries
+
+
+def _fetch_and_process_news_item(news_item: dict) -> Optional[dict]:
+    """
+    Fetch summary for a single news item and return processed item.
+    Returns None if fetching fails.
+    """
+    try:
+        logger.info(f"Fetching summary for: {news_item['source_url']}")
+        summary = fetch_news_summary(news_item["source_url"])
+        
+        # Transform to format expected by transcript agent
+        processed_item = {
+            "url": news_item["source_url"],
+            "summary": summary,
+            "comments": [
+                {"author": c["author"], "body": c["body"]} 
+                for c in news_item["comments"]
+            ]
+        }
+        logger.info(f"Successfully processed news item: {news_item['source_url']}")
+        return processed_item
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Failed to fetch summary for {news_item['source_url']}: {e}. Skipping this news item.")
+        return None
 
 
 class ProducerThread(threading.Thread):
@@ -64,27 +91,25 @@ class ProducerThread(threading.Thread):
                 comment_limit=config.comment_limit,
                 subreddit=config.subreddit
             )
-            for news_item in news_generator:
-                # Fetch summary for each news item
-                try:
-                    logger.info(f"Fetching summary for: {news_item['source_url']}")
-                    summary = fetch_news_summary(news_item["source_url"])
-                    
-                    # Transform to format expected by transcript agent
-                    # Keep both author and body for each comment
-                    processed_item = {
-                        "url": news_item["source_url"],
-                        "summary": summary,
-                        "comments": [
-                            {"author": c["author"], "body": c["body"]} 
-                            for c in news_item["comments"]
-                        ]
-                    }
-                    self._news_items.append(processed_item)
-                    logger.info(f"Successfully processed news item: {news_item['source_url']}")
-                except Exception as e:  # noqa: BLE001
-                    logger.warning(f"Failed to fetch summary for {news_item['source_url']}: {e}. Skipping this news item.")
-                    continue
+            
+            # Collect all news items first
+            news_items_list = list(news_generator)
+            logger.info(f"Fetched {len(news_items_list)} news items from Reddit")
+            
+            # Fetch summaries concurrently using ThreadPoolExecutor
+            logger.info(f"Fetching summaries concurrently with {config.max_workers} workers")
+            with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
+                # Submit all tasks
+                future_to_news = {
+                    executor.submit(_fetch_and_process_news_item, news_item): news_item
+                    for news_item in news_items_list
+                }
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_news):
+                    processed_item = future.result()
+                    if processed_item is not None:
+                        self._news_items.append(processed_item)
             
             logger.info(f"Successfully fetched {len(self._news_items)} news items with summaries")
         except Exception as e:  # noqa: BLE001
@@ -101,7 +126,6 @@ class ProducerThread(threading.Thread):
             return None
         
         news_item = self._news_items[self._current_news_index]
-        is_last_news = (self._current_news_index == len(self._news_items) - 1)
         
         try:
             logger.info(f"Processing news {self._current_news_index + 1}/{len(self._news_items)}: {news_item['url']}")
