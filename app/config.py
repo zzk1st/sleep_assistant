@@ -23,6 +23,13 @@ class AppConfig:
     bgm_ducked_volume: float = 0.1
     bgm_fade_seconds: float = 1.0
 
+    # Reddit API settings
+    reddit_client_id: Optional[str] = None
+    reddit_client_secret: Optional[str] = None
+    reddit_username: Optional[str] = None
+    reddit_password: Optional[str] = None
+    reddit_user_agent: str = "script:worldnews-top:v1.1 (by /u/your_username)"
+
 
 def load_config(env_file: Optional[str] = None) -> AppConfig:
     if env_file:
@@ -72,6 +79,13 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
     bgm_ducked_volume = _parse_float("BGM_DUCKED_VOLUME", 0.1)
     bgm_fade_seconds = _parse_float("BGM_FADE_SECONDS", 1.0)
 
+    # Reddit API settings (optional)
+    reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
+    reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+    reddit_username = os.getenv("REDDIT_USERNAME")
+    reddit_password = os.getenv("REDDIT_PASSWORD")
+    reddit_user_agent = os.getenv("REDDIT_USER_AGENT", "script:worldnews-top:v1.1 (by /u/your_username)")
+
     return AppConfig(
         elevenlabs_api_key=api_key,
         elevenlabs_voice_id=voice_id,
@@ -83,4 +97,9 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         bgm_initial_volume=bgm_initial_volume,
         bgm_ducked_volume=bgm_ducked_volume,
         bgm_fade_seconds=bgm_fade_seconds,
+        reddit_client_id=reddit_client_id,
+        reddit_client_secret=reddit_client_secret,
+        reddit_username=reddit_username,
+        reddit_password=reddit_password,
+        reddit_user_agent=reddit_user_agent,
     )
