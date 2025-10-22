@@ -15,6 +15,7 @@ import google.generativeai as genai
 from app.transcript_agent.transcript_agent import TranscriptAgent
 from app.reddit_world_news import run_with_praw
 from app.config import load_config
+from app.utils import fetch_news_summary
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class ProducerConfig:
     batch_produce_count: int = 1
     news_timeframe: str = "day"  # 'hour', 'day', 'week', 'month', 'year', 'all'
-    news_limit: int = 3  # Number of news items to fetch
+    news_limit: int = 10  # Number of news items to fetch
     comment_limit: int = 5  # Number of top comments per post
     subreddit: str = "worldnews"
 
@@ -64,13 +65,28 @@ class ProducerThread(threading.Thread):
                 subreddit=config.subreddit
             )
             for news_item in news_generator:
-                # Transform to format expected by transcript agent
-                processed_item = {
-                    "url": news_item["source_url"],
-                    "comments": [c["body"] for c in news_item["comments"]]
-                }
-                self._news_items.append(processed_item)
-            logger.info(f"Successfully fetched {len(self._news_items)} news items")
+                # Fetch summary for each news item
+                try:
+                    logger.info(f"Fetching summary for: {news_item['source_url']}")
+                    summary = fetch_news_summary(news_item["source_url"])
+                    
+                    # Transform to format expected by transcript agent
+                    # Keep both author and body for each comment
+                    processed_item = {
+                        "url": news_item["source_url"],
+                        "summary": summary,
+                        "comments": [
+                            {"author": c["author"], "body": c["body"]} 
+                            for c in news_item["comments"]
+                        ]
+                    }
+                    self._news_items.append(processed_item)
+                    logger.info(f"Successfully processed news item: {news_item['source_url']}")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Failed to fetch summary for {news_item['source_url']}: {e}. Skipping this news item.")
+                    continue
+            
+            logger.info(f"Successfully fetched {len(self._news_items)} news items with summaries")
         except Exception as e:  # noqa: BLE001
             logger.exception(f"Failed to fetch news from Reddit: {e}")
             # Provide fallback behavior with empty news list
@@ -90,10 +106,16 @@ class ProducerThread(threading.Thread):
         try:
             logger.info(f"Processing news {self._current_news_index + 1}/{len(self._news_items)}: {news_item['url']}")
             
+            # Prepare input with prefetched summary and comments
+            news_input = {
+                "summary": news_item["summary"],
+                "comments": news_item["comments"]
+            }
+            
             # Use transcript agent to generate paragraphs
             # Add sleep guidance only for the last news item
             result = self._transcript_agent.process_news(
-                news_input=news_item,
+                news_input=news_input,
                 add_sleep_guidance=random.random() < 0.5
             )
             

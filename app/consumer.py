@@ -66,7 +66,6 @@ class ConsumerThread(threading.Thread):
                     break
                 logger.info(f"Synthesizing audio for text: {text}")
                 audio = self._tts.synthesize(text)
-                logger.info(f"Synthesized audio for text: {audio}")
                 if self._stop_event.is_set():
                     break
                 logger.info(f"Playing audio for text: {text}")
