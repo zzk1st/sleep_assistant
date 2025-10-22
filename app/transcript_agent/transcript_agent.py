@@ -62,7 +62,16 @@ def _fetch_text_local(
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             # Download the document file
             timeout = httpx.Timeout(connect=20.0, read=10.0, write=10.0, pool=None)
-            with httpx.Client(timeout=timeout) as client:
+            # Add browser-like headers to avoid 403 errors
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            with httpx.Client(timeout=timeout, headers=headers, follow_redirects=True) as client:
                 response = client.get(url)
                 if response.status_code != 200:
                     print(f"Failed to download document from {url}")

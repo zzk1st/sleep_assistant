@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class ProducerConfig:
     batch_produce_count: int = 1
     news_timeframe: str = "day"  # 'hour', 'day', 'week', 'month', 'year', 'all'
-    news_limit: int = 10  # Number of news items to fetch
+    news_limit: int = 3  # Number of news items to fetch
     comment_limit: int = 5  # Number of top comments per post
     subreddit: str = "worldnews"
 
