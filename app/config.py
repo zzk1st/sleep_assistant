@@ -57,7 +57,7 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         ) from exc
 
     # Background music envs (optional)
-    bgm_path = os.getenv("BGM_PATH", "background_music.wav")  # can be None; user will provide later
+    bgm_path = os.getenv("BGM_PATH", "background_music.mp3")  # can be None; user will provide later
     def _parse_float(name: str, default: float) -> float:
         v = os.getenv(name)
         if v is None:
