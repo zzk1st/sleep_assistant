@@ -140,7 +140,7 @@ class ProducerThread(threading.Thread):
             # Add sleep guidance only for the last news item
             result = self._transcript_agent.process_news(
                 news_input=news_input,
-                add_sleep_guidance=random.random() < 0.5
+                add_sleep_guidance=True
             )
             
             paragraphs = result.get("paragraphs", [])
